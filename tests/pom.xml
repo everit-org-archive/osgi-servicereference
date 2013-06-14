@@ -56,7 +56,7 @@
             <plugin>
                 <groupId>org.everit.osgi.dev</groupId>
                 <artifactId>eosgi-maven-plugin</artifactId>
-                <version>1.0.0</version>
+                <version>1.1.0-SNAPSHOT</version>
                 <executions>
                     <execution>
                         <id>integration-test</id>
@@ -65,6 +65,9 @@
                             <goal>integration-test</goal>
                         </goals>
                         <configuration>
+                        	<jacoco>
+                        		<includes>org.everit.osgi.servicereference.*</includes>
+                        	</jacoco>
                             <environments>
                                 <environment>
                                     <id>equinoxtest</id>
