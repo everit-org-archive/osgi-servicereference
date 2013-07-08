@@ -67,6 +67,7 @@
                         <configuration>
                         	<jacoco>
                         		<includes>org.everit.osgi.servicereference.*</includes>
+                                <excludes>org.everit.osgi.servicereference.tests.*</excludes>
                         	</jacoco>
                             <environments>
                                 <environment>
@@ -94,12 +95,12 @@
         <dependency>
             <groupId>org.everit.osgi.dev</groupId>
             <artifactId>org.everit.osgi.dev.richconsole</artifactId>
-            <version>[1,2)</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.osgi</groupId>
             <artifactId>org.osgi.core</artifactId>
-            <version>[4.3.1,5)</version>
+            <version>4.3.1</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
