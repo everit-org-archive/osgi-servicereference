@@ -38,8 +38,36 @@ public interface ReferenceTest {
     void testLaterAvailableService();
 
     /**
-     * Testing when there is no service available until the given timeout.
+     * When there is no service available and till the timeout and no custom ServiceUnavailableHandler is used a
+     * ServiceUnavailableException is thrown.
      */
     @Test
     void testTimeout();
+
+    /**
+     * When a service throws an exception via the proxy object it should come back to the caller.
+     */
+    @Test
+    void testException();
+
+    /**
+     * When a reference is not opened and a method is called on the proxy object the reference should throw an
+     * IllegalStateException.
+     */
+    @Test
+    void testNotOpenedReference();
+
+    /**
+     * When the interfaces parameter of Reference is null or an empty array is passed an IllegalArgumentException should
+     * be thrown.
+     */
+    @Test
+    void testNoInterfaceDefinition();
+
+    /**
+     * Testing if a service does not implement all the required interfaces.
+     */
+    @Test
+    void testNotAllRequiredInterfaces();
+
 }

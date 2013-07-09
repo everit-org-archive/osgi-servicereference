@@ -21,10 +21,14 @@ package org.everit.osgi.servicereference.tests;
  * MA 02110-1301  USA
  */
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.everit.osgi.servicereference.core.Reference;
@@ -63,14 +67,8 @@ public class ReferenceTestImpl implements ReferenceTest {
         ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
                 new ArrayList<String>(Arrays.asList("Test")), properties);
 
-        Filter filter = null;
-        try {
-            filter = bundleContext.createFilter("(testservice=true)");
-        } catch (InvalidSyntaxException e) {
-            Assert.fail(e.getMessage());
-        }
         Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
-                filter, 1);
+                createTestFilter(), 1);
         reference.open();
         List<String> proxyInstance = reference.getProxyInstance();
 
@@ -84,14 +82,8 @@ public class ReferenceTestImpl implements ReferenceTest {
     @Override
     @Test
     public void testLaterAvailableService() {
-        Filter filter = null;
-        try {
-            filter = bundleContext.createFilter("(testservice=true)");
-        } catch (InvalidSyntaxException e) {
-            Assert.fail(e.getMessage());
-        }
         Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
-                filter, 2000);
+                createTestFilter(), 2000);
         reference.open();
         final List<Integer> proxyInstance = reference.getProxyInstance();
         final AtomicInteger result = new AtomicInteger(0);
@@ -133,14 +125,8 @@ public class ReferenceTestImpl implements ReferenceTest {
 
     @Override
     public void testTimeout() {
-        Filter filter = null;
-        try {
-            filter = bundleContext.createFilter("(testservice=true)");
-        } catch (InvalidSyntaxException e) {
-            Assert.fail(e.getMessage());
-        }
         Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
-                filter, 1);
+                createTestFilter(), 1);
         reference.open();
         List<String> proxyInstance = reference.getProxyInstance();
         try {
@@ -150,6 +136,96 @@ public class ReferenceTestImpl implements ReferenceTest {
             // Correct. The exception has to be thrown after 1 millisec.
         }
         reference.close();
+    }
+
+    @Override
+    public void testException() {
+        Hashtable<String, Object> properties = new Hashtable<String, Object>();
+        properties.put("testservice", "true");
+        ServiceRegistration<Closeable> existingSR = bundleContext.registerService(Closeable.class,
+                new Closeable() {
+
+                    @Override
+                    public void close() throws IOException {
+                        throw new IOException("Test exception");
+                    }
+                }, properties);
+
+        Reference reference = new Reference(bundleContext, new Class[] { Closeable.class }, createTestFilter(), 1);
+        reference.open();
+        Closeable proxyInstance = reference.getProxyInstance();
+        try {
+            proxyInstance.close();
+            Assert.fail("An IOException should have been dropped");
+        } catch (IOException e) {
+            // Good behavior
+        }
+        reference.close();
+        existingSR.unregister();
+    }
+
+    @Override
+    public void testNotOpenedReference() {
+        Reference reference = new Reference(bundleContext, new Class[] { List.class }, createTestFilter(), 1);
+        List<Integer> proxyInstance = reference.getProxyInstance();
+        try {
+            proxyInstance.add(1);
+            Assert.fail("IllegalStateException should have happened as reference is not opened");
+        } catch (IllegalStateException e) {
+            // Good behavior
+        }
+    }
+
+    @Override
+    public void testNoInterfaceDefinition() {
+        try {
+            new Reference(bundleContext, new Class[0], createTestFilter(), 1);
+            Assert.fail("In case of an empty interface array an exception should be thrown");
+        } catch (IllegalArgumentException e) {
+            // Right behavior
+        }
+
+        try {
+            new Reference(bundleContext, null, createTestFilter(), 1);
+            Assert.fail("In case null interface array an exception should be thrown");
+        } catch (IllegalArgumentException e) {
+            // Right behavior
+        }
+    }
+
+    @Override
+    public void testNotAllRequiredInterfaces() {
+        Hashtable<String, Object> properties = new Hashtable<String, Object>();
+        properties.put("testservice", "true");
+        ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
+                new ArrayList<String>(Arrays.asList("Test")), properties);
+
+        Reference reference = new Reference(bundleContext, new Class<?>[] { List.class, Comparable.class },
+                createTestFilter(), 1);
+
+        reference.open();
+
+        List<String> proxyInstance = reference.getProxyInstance();
+        try {
+            proxyInstance.contains("Test");
+            Assert.fail("Should throw a ServiceUnavailable exception as there is no service registered which"
+                    + " implements all the necessary interfaces");
+        } catch (ServiceUnavailableException e) {
+            // Correct. An exception should be thrown as not all the required interfaces are implemented by the
+            // registered service object.
+        }
+        reference.close();
+        existingSR.unregister();
+    }
+
+    private Filter createTestFilter() {
+        Filter filter = null;
+        try {
+            filter = bundleContext.createFilter("(testservice=true)");
+        } catch (InvalidSyntaxException e) {
+            Assert.fail(e.getMessage());
+        }
+        return filter;
     }
 
 }

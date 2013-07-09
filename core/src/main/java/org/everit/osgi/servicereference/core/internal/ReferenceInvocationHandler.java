@@ -25,6 +25,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import org.everit.osgi.servicereference.core.Reference;
 import org.everit.osgi.servicereference.core.ServiceUnavailableHandler;
 import org.osgi.util.tracker.ServiceTracker;
 
@@ -55,6 +56,8 @@ public class ReferenceInvocationHandler implements InvocationHandler {
      */
     private final String filter;
 
+    private final Reference reference;
+
     /**
      * The object that handles if a service is not available even after the timeout.
      */
@@ -70,7 +73,8 @@ public class ReferenceInvocationHandler implements InvocationHandler {
      * @param timeout
      *            value of {@link #timeout}.
      */
-    public ReferenceInvocationHandler(final ServiceTracker<Object, Object> serviceTracker, final String filter,
+    public ReferenceInvocationHandler(final Reference reference, final ServiceTracker<Object, Object> serviceTracker,
+            final String filter,
             final long timeout) {
         if (filter == null) {
             throw new IllegalArgumentException("The filter parameter cannot be null");
@@ -78,6 +82,7 @@ public class ReferenceInvocationHandler implements InvocationHandler {
         this.timeout = timeout;
         this.filter = filter;
         this.serviceTracker = serviceTracker;
+        this.reference = reference;
     }
 
     /**
@@ -88,6 +93,9 @@ public class ReferenceInvocationHandler implements InvocationHandler {
     public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
         Object service = serviceTracker.getService();
         if (service == null) {
+            if (!reference.isOpened()) {
+                throw new IllegalStateException("Reference is not opened. Filter of reference: '" + filter + "'.");
+            }
             service = serviceTracker.waitForService(timeout);
         }
         if (service == null) {

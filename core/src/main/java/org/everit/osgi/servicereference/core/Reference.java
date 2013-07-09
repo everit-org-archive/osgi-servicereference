@@ -44,6 +44,11 @@ public class Reference {
     private Object proxyInstance;
 
     /**
+     * True if this reference is currently opened.
+     */
+    private boolean opened = false;
+
+    /**
      * Tracks the available services that can be used by the {@link #proxyInstance}.
      */
     private ServiceTracker<Object, Object> serviceTracker;
@@ -64,13 +69,11 @@ public class Reference {
     public Reference(final BundleContext context, final Class<?>[] interfaces, final Filter filter,
             final long timeout) {
         ReferenceTrackerCustomizer customizer = null;
-        if ((interfaces != null) && (interfaces.length > 0)) {
-            customizer = new ReferenceTrackerCustomizer(context, interfaces);
-        }
+        customizer = new ReferenceTrackerCustomizer(context, interfaces);
 
         serviceTracker = new ServiceTracker<Object, Object>(context, filter, customizer);
         ReferenceInvocationHandler referenceInvocationHandler =
-                new ReferenceInvocationHandler(serviceTracker, filter.toString(), timeout);
+                new ReferenceInvocationHandler(this, serviceTracker, filter.toString(), timeout);
         Bundle blueprintBundle = context.getBundle();
         ClassLoader classLoader = blueprintBundle.adapt(BundleWiring.class).getClassLoader();
         // TODO check if classloader is null and handle it. It could be null in case of special security circumstances.
@@ -84,6 +87,7 @@ public class Reference {
      * Releases the inner {@link ServiceTracker} that is used to track available services.
      */
     public void close() {
+        opened = false;
         serviceTracker.close();
     }
 
@@ -100,10 +104,15 @@ public class Reference {
         return result;
     }
 
+    public boolean isOpened() {
+        return opened;
+    }
+
     /**
      * Opens the inner {@link ServiceTracker} that is used to track the available services.
      */
     public void open() {
+        opened = true;
         serviceTracker.open();
     }
 

@@ -49,9 +49,10 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
      * @param requiredInterfaces
      *            Value of {@link #requiredInterfaces}.
      * 
-     *            throws IllegalArgumentException if not interface is specified. At least one interface has to be
-     *            specified as the tracked service will be proxied and the proxy object will implement the required
-     *            interfaces.
+     * @throws IllegalArgumentException
+     *             if no interface is specified. At least one interface has to be
+     *             specified as the tracked service will be proxied and the proxy object will implement the required
+     *             interfaces.
      */
     public ReferenceTrackerCustomizer(final BundleContext bundleContext, final Class<?>[] requiredInterfaces) {
         if ((requiredInterfaces == null) || (requiredInterfaces.length == 0)) {
