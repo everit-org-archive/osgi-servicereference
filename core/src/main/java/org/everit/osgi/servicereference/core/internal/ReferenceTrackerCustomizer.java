@@ -55,9 +55,6 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
      *             interfaces.
      */
     public ReferenceTrackerCustomizer(final BundleContext bundleContext, final Class<?>[] requiredInterfaces) {
-        if ((requiredInterfaces == null) || (requiredInterfaces.length == 0)) {
-            throw new IllegalArgumentException("The number of required interfaces must be at least one.");
-        }
         this.requiredInterfaces = requiredInterfaces;
         this.bundleContext = bundleContext;
     }

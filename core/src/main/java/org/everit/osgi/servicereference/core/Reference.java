@@ -68,6 +68,12 @@ public class Reference {
      */
     public Reference(final BundleContext context, final Class<?>[] interfaces, final Filter filter,
             final long timeout) {
+        if (filter == null) {
+            throw new IllegalArgumentException("The filter parameter cannot be null");
+        }
+        if ((interfaces == null) || (interfaces.length == 0)) {
+            throw new IllegalArgumentException("The number of required interfaces must be at least one.");
+        }
         ReferenceTrackerCustomizer customizer = null;
         customizer = new ReferenceTrackerCustomizer(context, interfaces);
 

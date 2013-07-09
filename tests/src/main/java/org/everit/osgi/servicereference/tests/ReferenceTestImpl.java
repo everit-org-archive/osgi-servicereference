@@ -23,12 +23,10 @@ package org.everit.osgi.servicereference.tests;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.everit.osgi.servicereference.core.Reference;
@@ -218,6 +216,17 @@ public class ReferenceTestImpl implements ReferenceTest {
         existingSR.unregister();
     }
 
+    @Override
+    public void testNoFilter() {
+        try {
+            new Reference(bundleContext, new Class[] { List.class }, null, 1);
+            Assert.fail("In case no filter is provided for Reference Constructor an IllegalArgument should be thrown");
+        } catch (IllegalArgumentException e) {
+            // Good behavior
+        }
+
+    }
+
     private Filter createTestFilter() {
         Filter filter = null;
         try {
@@ -227,5 +236,4 @@ public class ReferenceTestImpl implements ReferenceTest {
         }
         return filter;
     }
-
 }

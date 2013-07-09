@@ -70,4 +70,10 @@ public interface ReferenceTest {
     @Test
     void testNotAllRequiredInterfaces();
 
+    /**
+     * In case no filter is provided for Reference Constructor an IllegalArgument should be thrown.
+     */
+    @Test
+    void testNoFilter();
+
 }

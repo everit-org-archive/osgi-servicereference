@@ -26,6 +26,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import org.everit.osgi.servicereference.core.Reference;
+import org.everit.osgi.servicereference.core.ServiceUnavailableException;
 import org.everit.osgi.servicereference.core.ServiceUnavailableHandler;
 import org.osgi.util.tracker.ServiceTracker;
 
@@ -36,11 +37,6 @@ import org.osgi.util.tracker.ServiceTracker;
  */
 public class ReferenceInvocationHandler implements InvocationHandler {
 
-    /**
-     * The {@link ServiceUnavailableHandler} that is used in case other behaviour is not specified.
-     */
-    private static final ServiceUnavailableHandler DEFAULT_SERVICE_NOT_AVAILABLE_HANDLER =
-            new DefaultServiceNotAvailableHandlerImpl();
     /**
      * The timeout until the thread (function call) will wait if there is no service available.
      */
@@ -76,9 +72,6 @@ public class ReferenceInvocationHandler implements InvocationHandler {
     public ReferenceInvocationHandler(final Reference reference, final ServiceTracker<Object, Object> serviceTracker,
             final String filter,
             final long timeout) {
-        if (filter == null) {
-            throw new IllegalArgumentException("The filter parameter cannot be null");
-        }
         this.timeout = timeout;
         this.filter = filter;
         this.serviceTracker = serviceTracker;
@@ -100,15 +93,16 @@ public class ReferenceInvocationHandler implements InvocationHandler {
         }
         if (service == null) {
             if (serviceNotAvailableHandler != null) {
-                serviceNotAvailableHandler.handle(filter, method, args, timeout);
+                return serviceNotAvailableHandler.handle(filter, method, args, timeout);
             } else {
-                DEFAULT_SERVICE_NOT_AVAILABLE_HANDLER.handle(filter, method, args, timeout);
+                throw new ServiceUnavailableException(filter, method, timeout);
             }
-        }
-        try {
-            return method.invoke(service, args);
-        } catch (InvocationTargetException e) {
-            throw e.getTargetException();
+        } else {
+            try {
+                return method.invoke(service, args);
+            } catch (InvocationTargetException e) {
+                throw e.getTargetException();
+            }
         }
     }
 
