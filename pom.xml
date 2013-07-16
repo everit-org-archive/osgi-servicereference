@@ -48,11 +48,11 @@
         <developerConnection>scm:git:https://github.com/everit-org/${projectpath}.git</developerConnection>
         <url>https://github.com/everit-org/${projectpath}</url>
     </scm>
-    <url>${everit.public.site.url}/${projectpath}</url>
+    <url>${everit.public.site.url}/mvnsites/${projectpath}</url>
     <distributionManagement>
         <site>
             <id>everit.org</id>
-            <url>dav:${everit.public.site.url}/${projectpath}</url>
+            <url>dav:${everit.public.site.url}/mvnsites/${projectpath}</url>
         </site>
     </distributionManagement>
     <ciManagement>
