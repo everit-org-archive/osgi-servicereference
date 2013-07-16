@@ -57,6 +57,16 @@ Sample usage
 
 For more samples please see the source of ReferenceTestImpl class!
 
+Maven usage
+-----------
+
+To use this library you can use the same repository you can find in
+the parent pom.
+
+The maven generated site is available [here][1].
+
+[1]: http://everit.org/mvnsites/osgi-servicereference/
+
 
 Questions and answers
 ---------------------
