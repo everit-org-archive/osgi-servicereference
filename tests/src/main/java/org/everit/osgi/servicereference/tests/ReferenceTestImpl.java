@@ -34,7 +34,6 @@ import org.everit.osgi.servicereference.core.Reference;
 import org.everit.osgi.servicereference.core.ServiceUnavailableException;
 import org.everit.osgi.servicereference.core.ServiceUnavailableHandler;
 import org.junit.Assert;
-import org.junit.Test;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Filter;
 import org.osgi.framework.InvalidSyntaxException;
@@ -145,9 +144,9 @@ public class ReferenceTestImpl implements ReferenceTest {
                 Method method = List.class.getMethod("contains", new Class[] { Object.class });
                 Assert.assertEquals(method, e.getMethod());
             } catch (NoSuchMethodException e1) {
-                throw new AssertionError("Contains method not found", e1);
+                throw new RuntimeException(e1);
             } catch (SecurityException e1) {
-                throw new AssertionError("Could not get contains method", e1);
+                throw new RuntimeException(e1);
             }
         }
         reference.close();
