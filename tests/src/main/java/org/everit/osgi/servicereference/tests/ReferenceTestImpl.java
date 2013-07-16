@@ -23,6 +23,7 @@ package org.everit.osgi.servicereference.tests;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.everit.osgi.servicereference.core.Reference;
 import org.everit.osgi.servicereference.core.ServiceUnavailableException;
+import org.everit.osgi.servicereference.core.ServiceUnavailableHandler;
 import org.junit.Assert;
 import org.junit.Test;
 import org.osgi.framework.BundleContext;
@@ -62,12 +64,16 @@ public class ReferenceTestImpl implements ReferenceTest {
     public void testExistingReference() {
         Hashtable<String, Object> properties = new Hashtable<String, Object>();
         properties.put("testservice", "true");
+
+        @SuppressWarnings("rawtypes")
         ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
                 new ArrayList<String>(Arrays.asList("Test")), properties);
 
         Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
                 createTestFilter(), 1);
+
         reference.open();
+
         List<String> proxyInstance = reference.getProxyInstance();
 
         Assert.assertTrue(proxyInstance.contains("Test"));
@@ -78,7 +84,6 @@ public class ReferenceTestImpl implements ReferenceTest {
     }
 
     @Override
-    @Test
     public void testLaterAvailableService() {
         Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
                 createTestFilter(), 2000);
@@ -106,6 +111,8 @@ public class ReferenceTestImpl implements ReferenceTest {
         }
         Hashtable<String, Object> properties = new Hashtable<String, Object>();
         properties.put("testservice", "true");
+
+        @SuppressWarnings("rawtypes")
         ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
                 new ArrayList<Integer>(Arrays.asList(1)), properties);
 
@@ -123,15 +130,25 @@ public class ReferenceTestImpl implements ReferenceTest {
 
     @Override
     public void testTimeout() {
+        Filter testFilter = createTestFilter();
         Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
-                createTestFilter(), 1);
+                testFilter, 1);
         reference.open();
         List<String> proxyInstance = reference.getProxyInstance();
         try {
             proxyInstance.contains("Test");
             Assert.fail("Should throw a ServiceUnavailable exception");
         } catch (ServiceUnavailableException e) {
-            // Correct. The exception has to be thrown after 1 millisec.
+            Assert.assertEquals(testFilter.toString(), e.getServiceFilter());
+            Assert.assertEquals(1, e.getTimeout());
+            try {
+                Method method = List.class.getMethod("contains", new Class[] { Object.class });
+                Assert.assertEquals(method, e.getMethod());
+            } catch (NoSuchMethodException e1) {
+                throw new AssertionError("Contains method not found", e1);
+            } catch (SecurityException e1) {
+                throw new AssertionError("Could not get contains method", e1);
+            }
         }
         reference.close();
     }
@@ -195,6 +212,8 @@ public class ReferenceTestImpl implements ReferenceTest {
     public void testNotAllRequiredInterfaces() {
         Hashtable<String, Object> properties = new Hashtable<String, Object>();
         properties.put("testservice", "true");
+
+        @SuppressWarnings("rawtypes")
         ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
                 new ArrayList<String>(Arrays.asList("Test")), properties);
 
@@ -217,6 +236,39 @@ public class ReferenceTestImpl implements ReferenceTest {
     }
 
     @Override
+    public void testCustomHandler() {
+        final int testTimeout = 3;
+        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
+                createTestFilter(), testTimeout);
+
+        reference.setServiceUnavailableHander(new ServiceUnavailableHandler() {
+
+            @Override
+            public Object handle(String serviceFilter, Method method, Object[] args, long timeout) {
+                return (int) (timeout * (-1));
+            }
+        });
+        reference.open();
+        Comparable<Integer> service = reference.getProxyInstance();
+        Assert.assertEquals(testTimeout * (-1), service.compareTo(null));
+
+        reference.setServiceUnavailableHander(new ServiceUnavailableHandler() {
+
+            @Override
+            public Object handle(String serviceFilter, Method method, Object[] args, long timeout) {
+                throw new NullPointerException("test");
+            }
+        });
+        try {
+            service.compareTo(null);
+            Assert.fail();
+        } catch (NullPointerException e) {
+            Assert.assertEquals("test", e.getMessage());
+        }
+        reference.close();
+    }
+
+    @Override
     public void testNoFilter() {
         try {
             new Reference(bundleContext, new Class[] { List.class }, null, 1);
@@ -224,7 +276,88 @@ public class ReferenceTestImpl implements ReferenceTest {
         } catch (IllegalArgumentException e) {
             // Good behavior
         }
+    }
 
+    @Override
+    public void testWaitForService() {
+        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
+                createTestFilter(), 1);
+        try {
+            reference.waitForService(1);
+            Assert.fail();
+        } catch (InterruptedException e) {
+            Assert.fail();
+        } catch (IllegalStateException e) {
+            // Good behavior
+        }
+        reference.open();
+        try {
+            Assert.assertFalse(reference.waitForService(1));
+        } catch (InterruptedException e) {
+            Assert.fail();
+        }
+
+        Hashtable<String, Object> properties = new Hashtable<String, Object>();
+        properties.put("testservice", "true");
+
+        @SuppressWarnings("rawtypes")
+        ServiceRegistration<Comparable> existingSR = bundleContext.registerService(Comparable.class,
+                Integer.valueOf(1), properties);
+
+        try {
+            Assert.assertTrue(reference.waitForService(1));
+        } catch (InterruptedException e) {
+            Assert.fail();
+        }
+
+        existingSR.unregister();
+
+        reference.close();
+    }
+
+    @Override
+    public void testServiceModification() {
+        // First: doing a normal service call
+        Hashtable<String, Object> properties = new Hashtable<String, Object>();
+        properties.put("testservice", "true");
+
+        @SuppressWarnings("rawtypes")
+        ServiceRegistration<Comparable> existingSR = bundleContext.registerService(Comparable.class,
+                Integer.valueOf(1), properties);
+
+        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
+                createTestFilter(), 1);
+
+        reference.open();
+
+        Comparable<Integer> serviceProxy = reference.getProxyInstance();
+        Assert.assertEquals(0, serviceProxy.compareTo(1));
+        // Normal service call is done
+
+        // Second: changing the properties so the service is unregistered. An exception should be thrown
+        Hashtable<String, Object> emptyProperties = new Hashtable<String, Object>();
+        existingSR.setProperties(emptyProperties);
+        try {
+            serviceProxy.compareTo(1);
+            Assert.fail();
+        } catch (ServiceUnavailableException e) {
+            // Good behavior
+        }
+
+        // Third: setting back the original properties so the normal service call works again
+        existingSR.setProperties(properties);
+        Assert.assertEquals(0, serviceProxy.compareTo(1));
+
+        // Fourth: changing the properties but leaving the testservice as well to let modifiedService being called in
+        // the hidden ServiceTrackerCustomizer
+        Hashtable<String, Object> addonProperties = new Hashtable<String, Object>();
+        addonProperties.put("testservice", "true");
+        addonProperties.put("testotherprop", "done");
+        existingSR.setProperties(addonProperties);
+        Assert.assertEquals(0, serviceProxy.compareTo(1));
+
+        existingSR.unregister();
+        reference.close();
     }
 
     private Filter createTestFilter() {

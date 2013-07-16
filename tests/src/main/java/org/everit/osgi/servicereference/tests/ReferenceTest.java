@@ -76,4 +76,23 @@ public interface ReferenceTest {
     @Test
     void testNoFilter();
 
+    /**
+     * Testing when a custom handler is used. It is tested when it returns a special value as well as when it throws a
+     * special exception.
+     */
+    @Test
+    public void testCustomHandler();
+
+    /**
+     * Testing waitForService function of Reference.
+     */
+    @Test
+    void testWaitForService();
+
+    /**
+     * Testing service property modifications.
+     */
+    @Test
+    void testServiceModification();
+
 }

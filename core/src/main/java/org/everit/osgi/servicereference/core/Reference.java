@@ -48,6 +48,8 @@ public class Reference {
      */
     private boolean opened = false;
 
+    private final ReferenceInvocationHandler referenceInvocationHandler;
+
     /**
      * Tracks the available services that can be used by the {@link #proxyInstance}.
      */
@@ -78,15 +80,19 @@ public class Reference {
         customizer = new ReferenceTrackerCustomizer(context, interfaces);
 
         serviceTracker = new ServiceTracker<Object, Object>(context, filter, customizer);
-        ReferenceInvocationHandler referenceInvocationHandler =
+        this.referenceInvocationHandler =
                 new ReferenceInvocationHandler(this, serviceTracker, filter.toString(), timeout);
+
         Bundle blueprintBundle = context.getBundle();
         ClassLoader classLoader = blueprintBundle.adapt(BundleWiring.class).getClassLoader();
         // TODO check if classloader is null and handle it. It could be null in case of special security circumstances.
 
         proxyInstance = Proxy.newProxyInstance(classLoader, interfaces,
                 referenceInvocationHandler);
+    }
 
+    public void setServiceUnavailableHander(final ServiceUnavailableHandler handler) {
+        this.referenceInvocationHandler.setServiceNotAvailableHandler(handler);
     }
 
     /**
@@ -130,8 +136,13 @@ public class Reference {
      * @return True if service is available before timeout false otherwise.
      * @throws InterruptedException
      *             See throws tag of {@link ServiceTracker#waitForService(long)}.
+     * @throws IllegalStateException
+     *             if the tracker is not opened.
      */
     public boolean waitForService(final long timeout) throws InterruptedException {
+        if (!opened) {
+            throw new IllegalStateException("waitForService should be called only on an opened reference");
+        }
         Object service = serviceTracker.waitForService(timeout);
         return service != null;
     }

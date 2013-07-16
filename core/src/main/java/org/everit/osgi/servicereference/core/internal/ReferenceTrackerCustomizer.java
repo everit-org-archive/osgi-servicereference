@@ -71,6 +71,7 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
 
         Object service = bundleContext.getService(reference);
         Class<? extends Object> classOfService = service.getClass();
+
         for (int i = 0, n = requiredInterfaces.length; (i < n) && implementsAll; i++) {
             implementsAll = (requiredInterfaces[i].isAssignableFrom(classOfService));
         }
