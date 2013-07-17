@@ -52,6 +52,9 @@ public class ReferenceInvocationHandler implements InvocationHandler {
      */
     private final String filter;
 
+    /**
+     * The reference that this invocation handler belongs to.
+     */
     private final Reference reference;
 
     /**

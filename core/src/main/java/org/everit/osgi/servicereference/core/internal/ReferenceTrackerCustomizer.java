@@ -21,6 +21,7 @@ package org.everit.osgi.servicereference.core.internal;
  * MA 02110-1301  USA
  */
 
+import org.everit.osgi.servicereference.core.WarmUpListener;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.util.tracker.ServiceTrackerCustomizer;
@@ -42,6 +43,18 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
     private final BundleContext bundleContext;
 
     /**
+     * The warm up listener that is called when the first service is added by this customizer.
+     */
+    private WarmUpListener warmUpListener;
+
+    /**
+     * A flag that shows whether warmup listener has been called or not.
+     */
+    private boolean warmedUp;
+
+    private volatile Object mutex = new Object();
+
+    /**
      * Simple constructor that sets the properties of this class.
      * 
      * @param bundleContext
@@ -50,9 +63,8 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
      *            Value of {@link #requiredInterfaces}.
      * 
      * @throws IllegalArgumentException
-     *             if no interface is specified. At least one interface has to be
-     *             specified as the tracked service will be proxied and the proxy object will implement the required
-     *             interfaces.
+     *             if no interface is specified. At least one interface has to be specified as the tracked service will
+     *             be proxied and the proxy object will implement the required interfaces.
      */
     public ReferenceTrackerCustomizer(final BundleContext bundleContext, final Class<?>[] requiredInterfaces) {
         this.requiredInterfaces = requiredInterfaces;
@@ -76,12 +88,28 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
             implementsAll = (requiredInterfaces[i].isAssignableFrom(classOfService));
         }
         if (implementsAll) {
+            callWarmUpListenerIfNecessary();
             return service;
         } else {
             bundleContext.ungetService(reference);
             return null;
         }
+    }
 
+    private void callWarmUpListenerIfNecessary() {
+        if (!warmedUp && (warmUpListener != null)) {
+            WarmUpListener tmp = warmUpListener;
+            boolean callIt = false;
+            synchronized (mutex) {
+                if (!warmedUp && (tmp != null)) {
+                    callIt = true;
+                }
+            }
+
+            if (callIt) {
+                tmp.warmed();
+            }
+        }
     }
 
     @Override
@@ -93,6 +121,17 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
     @Override
     public void removedService(final ServiceReference<Object> reference, final Object service) {
         bundleContext.ungetService(reference);
+    }
+
+    /**
+     * Resetting this customizer and taking it to it's initial state.
+     */
+    public void reset() {
+        warmedUp = false;
+    }
+
+    public void setWarmUpListener(final WarmUpListener warmUpListener) {
+        this.warmUpListener = warmUpListener;
     }
 
 }

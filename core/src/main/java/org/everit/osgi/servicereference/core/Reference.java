@@ -48,7 +48,20 @@ public class Reference {
      */
     private boolean opened = false;
 
+    /**
+     * The filter that is used to track services in this reference.
+     */
+    private Filter filter;
+
+    /**
+     * The invocation handler that catches method calls coming to the proxy object.
+     */
     private final ReferenceInvocationHandler referenceInvocationHandler;
+
+    /**
+     * Customizer of the serviceTracker that is used by this reference to track services.
+     */
+    private final ReferenceTrackerCustomizer serviceTrackerCustomizer;
 
     /**
      * Tracks the available services that can be used by the {@link #proxyInstance}.
@@ -76,11 +89,11 @@ public class Reference {
         if ((interfaces == null) || (interfaces.length == 0)) {
             throw new IllegalArgumentException("The number of required interfaces must be at least one.");
         }
-        ReferenceTrackerCustomizer customizer = null;
-        customizer = new ReferenceTrackerCustomizer(context, interfaces);
+        this.filter = filter;
+        serviceTrackerCustomizer = new ReferenceTrackerCustomizer(context, interfaces);
 
-        serviceTracker = new ServiceTracker<Object, Object>(context, filter, customizer);
-        this.referenceInvocationHandler =
+        serviceTracker = new ServiceTracker<Object, Object>(context, filter, serviceTrackerCustomizer);
+        referenceInvocationHandler =
                 new ReferenceInvocationHandler(this, serviceTracker, filter.toString(), timeout);
 
         Bundle blueprintBundle = context.getBundle();
@@ -91,16 +104,17 @@ public class Reference {
                 referenceInvocationHandler);
     }
 
-    public void setServiceUnavailableHander(final ServiceUnavailableHandler handler) {
-        this.referenceInvocationHandler.setServiceNotAvailableHandler(handler);
-    }
-
     /**
      * Releases the inner {@link ServiceTracker} that is used to track available services.
      */
     public void close() {
         opened = false;
         serviceTracker.close();
+        serviceTrackerCustomizer.reset();
+    }
+
+    public Filter getFilter() {
+        return filter;
     }
 
     /**
@@ -126,6 +140,25 @@ public class Reference {
     public void open() {
         opened = true;
         serviceTracker.open();
+    }
+
+    public void setServiceUnavailableHander(final ServiceUnavailableHandler handler) {
+        referenceInvocationHandler.setServiceNotAvailableHandler(handler);
+    }
+
+    /**
+     * Setting the {@link WarmUpListener} of this reference. For more information please see the doc of that class.
+     * 
+     * @param listener
+     *            The listener object or null if no warming up notification should be caughed.
+     * @throws IllegalStateException
+     *             if the reference is opened.
+     */
+    public void setWarmUpListener(final WarmUpListener listener) {
+        if (opened) {
+            throw new IllegalStateException("Warmup listener can be set only for a stopped reference");
+        }
+        serviceTrackerCustomizer.setWarmUpListener(listener);
     }
 
     /**

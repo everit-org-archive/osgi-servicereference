@@ -28,11 +28,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.everit.osgi.servicereference.core.Reference;
 import org.everit.osgi.servicereference.core.ServiceUnavailableException;
 import org.everit.osgi.servicereference.core.ServiceUnavailableHandler;
+import org.everit.osgi.servicereference.core.WarmUpListener;
 import org.junit.Assert;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Filter;
@@ -59,6 +61,80 @@ public class ReferenceTestImpl implements ReferenceTest {
         this.bundleContext = bundleContext;
     }
 
+    private Filter createTestFilter() {
+        Filter filter = null;
+        try {
+            filter = bundleContext.createFilter("(testservice=true)");
+        } catch (InvalidSyntaxException e) {
+            Assert.fail(e.getMessage());
+        }
+        return filter;
+    }
+
+    @Override
+    public void testCustomHandler() {
+        final int testTimeout = 3;
+        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
+                createTestFilter(), testTimeout);
+
+        reference.setServiceUnavailableHander(new ServiceUnavailableHandler() {
+
+            @Override
+            public Object handle(final String serviceFilter, final Method method, final Object[] args,
+                    final long timeout) {
+                return (int) (timeout * (-1));
+            }
+        });
+        reference.open();
+        Comparable<Integer> service = reference.getProxyInstance();
+        Assert.assertEquals(testTimeout * (-1), service.compareTo(null));
+
+        reference.setServiceUnavailableHander(new ServiceUnavailableHandler() {
+
+            @Override
+            public Object handle(final String serviceFilter, final Method method, final Object[] args,
+                    final long timeout) {
+                throw new NullPointerException("test");
+            }
+        });
+        try {
+            service.compareTo(null);
+            Assert.fail();
+        } catch (NullPointerException e) {
+            Assert.assertEquals("test", e.getMessage());
+        }
+        reference.close();
+    }
+
+    @Override
+    public void testException() {
+        Hashtable<String, Object> properties = new Hashtable<String, Object>();
+        properties.put("testservice", "true");
+        ServiceRegistration<Closeable> existingSR = bundleContext.registerService(Closeable.class,
+                new Closeable() {
+
+                    @Override
+                    public void close() throws IOException {
+                        throw new IOException("Test exception");
+                    }
+                }, properties);
+        try {
+
+            Reference reference = new Reference(bundleContext, new Class[] { Closeable.class }, createTestFilter(), 1);
+            reference.open();
+            Closeable proxyInstance = reference.getProxyInstance();
+            try {
+                proxyInstance.close();
+                Assert.fail("An IOException should have been dropped");
+            } catch (IOException e) {
+                // Good behavior
+            }
+            reference.close();
+        } finally {
+            existingSR.unregister();
+        }
+    }
+
     @Override
     public void testExistingReference() {
         Hashtable<String, Object> properties = new Hashtable<String, Object>();
@@ -68,18 +144,22 @@ public class ReferenceTestImpl implements ReferenceTest {
         ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
                 new ArrayList<String>(Arrays.asList("Test")), properties);
 
-        Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
-                createTestFilter(), 1);
+        try {
+            Filter filter = createTestFilter();
+            Reference reference = new Reference(bundleContext, new Class<?>[] { List.class }, filter, 1);
 
-        reference.open();
+            Assert.assertEquals(filter, reference.getFilter());
 
-        List<String> proxyInstance = reference.getProxyInstance();
+            reference.open();
 
-        Assert.assertTrue(proxyInstance.contains("Test"));
+            List<String> proxyInstance = reference.getProxyInstance();
 
-        reference.close();
+            Assert.assertTrue(proxyInstance.contains("Test"));
 
-        existingSR.unregister();
+            reference.close();
+        } finally {
+            existingSR.unregister();
+        }
     }
 
     @Override
@@ -115,77 +195,27 @@ public class ReferenceTestImpl implements ReferenceTest {
         ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
                 new ArrayList<Integer>(Arrays.asList(1)), properties);
 
-        for (int i = 0; (i < 100) && (result.get() != 1); i++) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Assert.fail(e.getMessage());
+        try {
+            for (int i = 0; (i < 100) && (result.get() != 1); i++) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Assert.fail(e.getMessage());
+                }
             }
+            Assert.assertEquals(1, result.get());
+            reference.close();
+        } finally {
+            existingSR.unregister();
         }
-        Assert.assertEquals(1, result.get());
-        reference.close();
-        existingSR.unregister();
     }
 
     @Override
-    public void testTimeout() {
-        Filter testFilter = createTestFilter();
-        Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
-                testFilter, 1);
-        reference.open();
-        List<String> proxyInstance = reference.getProxyInstance();
+    public void testNoFilter() {
         try {
-            proxyInstance.contains("Test");
-            Assert.fail("Should throw a ServiceUnavailable exception");
-        } catch (ServiceUnavailableException e) {
-            Assert.assertEquals(testFilter.toString(), e.getServiceFilter());
-            Assert.assertEquals(1, e.getTimeout());
-            try {
-                Method method = List.class.getMethod("contains", new Class[] { Object.class });
-                Assert.assertEquals(method, e.getMethod());
-            } catch (NoSuchMethodException e1) {
-                throw new RuntimeException(e1);
-            } catch (SecurityException e1) {
-                throw new RuntimeException(e1);
-            }
-        }
-        reference.close();
-    }
-
-    @Override
-    public void testException() {
-        Hashtable<String, Object> properties = new Hashtable<String, Object>();
-        properties.put("testservice", "true");
-        ServiceRegistration<Closeable> existingSR = bundleContext.registerService(Closeable.class,
-                new Closeable() {
-
-                    @Override
-                    public void close() throws IOException {
-                        throw new IOException("Test exception");
-                    }
-                }, properties);
-
-        Reference reference = new Reference(bundleContext, new Class[] { Closeable.class }, createTestFilter(), 1);
-        reference.open();
-        Closeable proxyInstance = reference.getProxyInstance();
-        try {
-            proxyInstance.close();
-            Assert.fail("An IOException should have been dropped");
-        } catch (IOException e) {
-            // Good behavior
-        }
-        reference.close();
-        existingSR.unregister();
-    }
-
-    @Override
-    public void testNotOpenedReference() {
-        Reference reference = new Reference(bundleContext, new Class[] { List.class }, createTestFilter(), 1);
-        List<Integer> proxyInstance = reference.getProxyInstance();
-        try {
-            proxyInstance.add(1);
-            Assert.fail("IllegalStateException should have happened as reference is not opened");
-        } catch (IllegalStateException e) {
+            new Reference(bundleContext, new Class[] { List.class }, null, 1);
+            Assert.fail("In case no filter is provided for Reference Constructor an IllegalArgument should be thrown");
+        } catch (IllegalArgumentException e) {
             // Good behavior
         }
     }
@@ -216,65 +246,112 @@ public class ReferenceTestImpl implements ReferenceTest {
         ServiceRegistration<List> existingSR = bundleContext.registerService(List.class,
                 new ArrayList<String>(Arrays.asList("Test")), properties);
 
-        Reference reference = new Reference(bundleContext, new Class<?>[] { List.class, Comparable.class },
-                createTestFilter(), 1);
+        try {
+            Reference reference = new Reference(bundleContext, new Class<?>[] { List.class, Comparable.class },
+                    createTestFilter(), 1);
 
+            reference.open();
+
+            List<String> proxyInstance = reference.getProxyInstance();
+            try {
+                proxyInstance.contains("Test");
+                Assert.fail("Should throw a ServiceUnavailable exception as there is no service registered which"
+                        + " implements all the necessary interfaces");
+            } catch (ServiceUnavailableException e) {
+                // Correct. An exception should be thrown as not all the required interfaces are implemented by the
+                // registered service object.
+            }
+            reference.close();
+        } finally {
+            existingSR.unregister();
+        }
+    }
+
+    @Override
+    public void testNotOpenedReference() {
+        Reference reference = new Reference(bundleContext, new Class[] { List.class }, createTestFilter(), 1);
+        List<Integer> proxyInstance = reference.getProxyInstance();
+        try {
+            proxyInstance.add(1);
+            Assert.fail("IllegalStateException should have happened as reference is not opened");
+        } catch (IllegalStateException e) {
+            // Good behavior
+        }
+    }
+
+    @Override
+    public void testServiceModification() {
+        // First: doing a normal service call
+        Hashtable<String, Object> properties = new Hashtable<String, Object>();
+        properties.put("testservice", "true");
+
+        @SuppressWarnings("rawtypes")
+        ServiceRegistration<Comparable> existingSR = bundleContext.registerService(Comparable.class,
+                Integer.valueOf(1), properties);
+
+        try {
+
+            Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
+                    createTestFilter(), 1);
+
+            reference.open();
+
+            Comparable<Integer> serviceProxy = reference.getProxyInstance();
+            Assert.assertEquals(0, serviceProxy.compareTo(1));
+            // Normal service call is done
+
+            // Second: changing the properties so the service is unregistered. An exception should be thrown
+            Hashtable<String, Object> emptyProperties = new Hashtable<String, Object>();
+            existingSR.setProperties(emptyProperties);
+            try {
+                serviceProxy.compareTo(1);
+                Assert.fail();
+            } catch (ServiceUnavailableException e) {
+                // Good behavior
+            }
+
+            // Third: setting back the original properties so the normal service call works again
+            existingSR.setProperties(properties);
+            Assert.assertEquals(0, serviceProxy.compareTo(1));
+
+            // Fourth: changing the properties but leaving the testservice as well to let modifiedService being called
+            // in
+            // the hidden ServiceTrackerCustomizer
+            Hashtable<String, Object> addonProperties = new Hashtable<String, Object>();
+            addonProperties.put("testservice", "true");
+            addonProperties.put("testotherprop", "done");
+            existingSR.setProperties(addonProperties);
+            Assert.assertEquals(0, serviceProxy.compareTo(1));
+
+            reference.close();
+        } finally {
+            existingSR.unregister();
+        }
+    }
+
+    @Override
+    public void testTimeout() {
+        Filter testFilter = createTestFilter();
+        Reference reference = new Reference(bundleContext, new Class<?>[] { List.class },
+                testFilter, 1);
         reference.open();
-
         List<String> proxyInstance = reference.getProxyInstance();
         try {
             proxyInstance.contains("Test");
-            Assert.fail("Should throw a ServiceUnavailable exception as there is no service registered which"
-                    + " implements all the necessary interfaces");
+            Assert.fail("Should throw a ServiceUnavailable exception");
         } catch (ServiceUnavailableException e) {
-            // Correct. An exception should be thrown as not all the required interfaces are implemented by the
-            // registered service object.
+            Assert.assertEquals(testFilter.toString(), e.getServiceFilter());
+            Assert.assertEquals(1, e.getTimeout());
+            try {
+                Method method = List.class.getMethod("contains", new Class[] { Object.class });
+                Assert.assertEquals(method, e.getMethod());
+            } catch (NoSuchMethodException e1) {
+                throw new RuntimeException(e1);
+            } catch (SecurityException e1) {
+                throw new RuntimeException(e1);
+            }
         }
         reference.close();
-        existingSR.unregister();
-    }
-
-    @Override
-    public void testCustomHandler() {
-        final int testTimeout = 3;
-        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
-                createTestFilter(), testTimeout);
-
-        reference.setServiceUnavailableHander(new ServiceUnavailableHandler() {
-
-            @Override
-            public Object handle(String serviceFilter, Method method, Object[] args, long timeout) {
-                return (int) (timeout * (-1));
-            }
-        });
-        reference.open();
-        Comparable<Integer> service = reference.getProxyInstance();
-        Assert.assertEquals(testTimeout * (-1), service.compareTo(null));
-
-        reference.setServiceUnavailableHander(new ServiceUnavailableHandler() {
-
-            @Override
-            public Object handle(String serviceFilter, Method method, Object[] args, long timeout) {
-                throw new NullPointerException("test");
-            }
-        });
-        try {
-            service.compareTo(null);
-            Assert.fail();
-        } catch (NullPointerException e) {
-            Assert.assertEquals("test", e.getMessage());
-        }
-        reference.close();
-    }
-
-    @Override
-    public void testNoFilter() {
-        try {
-            new Reference(bundleContext, new Class[] { List.class }, null, 1);
-            Assert.fail("In case no filter is provided for Reference Constructor an IllegalArgument should be thrown");
-        } catch (IllegalArgumentException e) {
-            // Good behavior
-        }
     }
 
     @Override
@@ -307,16 +384,33 @@ public class ReferenceTestImpl implements ReferenceTest {
             Assert.assertTrue(reference.waitForService(1));
         } catch (InterruptedException e) {
             Assert.fail();
+        } finally {
+            existingSR.unregister();
         }
-
-        existingSR.unregister();
 
         reference.close();
     }
 
     @Override
-    public void testServiceModification() {
-        // First: doing a normal service call
+    public void testWarmUp() {
+
+        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
+                createTestFilter(), 1);
+
+        final AtomicBoolean warmed = new AtomicBoolean(false);
+
+        reference.setWarmUpListener(new WarmUpListener() {
+
+            @Override
+            public void warmed() {
+                warmed.set(true);
+            }
+        });
+
+        reference.open();
+
+        Assert.assertFalse(warmed.get());
+
         Hashtable<String, Object> properties = new Hashtable<String, Object>();
         properties.put("testservice", "true");
 
@@ -324,48 +418,32 @@ public class ReferenceTestImpl implements ReferenceTest {
         ServiceRegistration<Comparable> existingSR = bundleContext.registerService(Comparable.class,
                 Integer.valueOf(1), properties);
 
-        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
-                createTestFilter(), 1);
-
-        reference.open();
-
-        Comparable<Integer> serviceProxy = reference.getProxyInstance();
-        Assert.assertEquals(0, serviceProxy.compareTo(1));
-        // Normal service call is done
-
-        // Second: changing the properties so the service is unregistered. An exception should be thrown
-        Hashtable<String, Object> emptyProperties = new Hashtable<String, Object>();
-        existingSR.setProperties(emptyProperties);
         try {
-            serviceProxy.compareTo(1);
-            Assert.fail();
-        } catch (ServiceUnavailableException e) {
-            // Good behavior
+
+            Assert.assertTrue(warmed.get());
+
+            try {
+                reference.setWarmUpListener(null);
+                Assert.fail();
+            } catch (IllegalStateException e) {
+                // Good behavior
+            }
+
+            reference.close();
+
+            warmed.set(false);
+            reference.open();
+            Assert.assertTrue(warmed.get());
+            reference.close();
+
+            reference.setWarmUpListener(null);
+            warmed.set(false);
+            reference.open();
+            Assert.assertFalse(warmed.get());
+            reference.close();
+
+        } finally {
+            existingSR.unregister();
         }
-
-        // Third: setting back the original properties so the normal service call works again
-        existingSR.setProperties(properties);
-        Assert.assertEquals(0, serviceProxy.compareTo(1));
-
-        // Fourth: changing the properties but leaving the testservice as well to let modifiedService being called in
-        // the hidden ServiceTrackerCustomizer
-        Hashtable<String, Object> addonProperties = new Hashtable<String, Object>();
-        addonProperties.put("testservice", "true");
-        addonProperties.put("testotherprop", "done");
-        existingSR.setProperties(addonProperties);
-        Assert.assertEquals(0, serviceProxy.compareTo(1));
-
-        existingSR.unregister();
-        reference.close();
-    }
-
-    private Filter createTestFilter() {
-        Filter filter = null;
-        try {
-            filter = bundleContext.createFilter("(testservice=true)");
-        } catch (InvalidSyntaxException e) {
-            Assert.fail(e.getMessage());
-        }
-        return filter;
     }
 }

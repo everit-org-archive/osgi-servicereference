@@ -26,6 +26,19 @@ import org.junit.Test;
 public interface ReferenceTest {
 
     /**
+     * Testing when a custom handler is used. It is tested when it returns a special value as well as when it throws a
+     * special exception.
+     */
+    @Test
+    public void testCustomHandler();
+
+    /**
+     * When a service throws an exception via the proxy object it should come back to the caller.
+     */
+    @Test
+    void testException();
+
+    /**
      * Testing when there is already a service when reference is opened and called.
      */
     @Test
@@ -38,24 +51,10 @@ public interface ReferenceTest {
     void testLaterAvailableService();
 
     /**
-     * When there is no service available and till the timeout and no custom ServiceUnavailableHandler is used a
-     * ServiceUnavailableException is thrown.
+     * In case no filter is provided for Reference Constructor an IllegalArgument should be thrown.
      */
     @Test
-    void testTimeout();
-
-    /**
-     * When a service throws an exception via the proxy object it should come back to the caller.
-     */
-    @Test
-    void testException();
-
-    /**
-     * When a reference is not opened and a method is called on the proxy object the reference should throw an
-     * IllegalStateException.
-     */
-    @Test
-    void testNotOpenedReference();
+    void testNoFilter();
 
     /**
      * When the interfaces parameter of Reference is null or an empty array is passed an IllegalArgumentException should
@@ -71,17 +70,24 @@ public interface ReferenceTest {
     void testNotAllRequiredInterfaces();
 
     /**
-     * In case no filter is provided for Reference Constructor an IllegalArgument should be thrown.
+     * When a reference is not opened and a method is called on the proxy object the reference should throw an
+     * IllegalStateException.
      */
     @Test
-    void testNoFilter();
+    void testNotOpenedReference();
 
     /**
-     * Testing when a custom handler is used. It is tested when it returns a special value as well as when it throws a
-     * special exception.
+     * Testing service property modifications.
      */
     @Test
-    public void testCustomHandler();
+    void testServiceModification();
+
+    /**
+     * When there is no service available and till the timeout and no custom ServiceUnavailableHandler is used a
+     * ServiceUnavailableException is thrown.
+     */
+    @Test
+    void testTimeout();
 
     /**
      * Testing waitForService function of Reference.
@@ -90,9 +96,9 @@ public interface ReferenceTest {
     void testWaitForService();
 
     /**
-     * Testing service property modifications.
+     * Testing the warmup callback fuctionality
      */
     @Test
-    void testServiceModification();
+    void testWarmUp();
 
 }

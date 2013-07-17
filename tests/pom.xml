@@ -49,7 +49,7 @@
                         <Bundle-Activator>org.everit.osgi.servicereference.tests.Activator</Bundle-Activator>
                         <Import-Package>*</Import-Package>
                         <Export-Package />
-                        <EOSGi-TestNum>11</EOSGi-TestNum>
+                        <EOSGi-TestNum>12</EOSGi-TestNum>
                     </instructions>
                 </configuration>
             </plugin>
