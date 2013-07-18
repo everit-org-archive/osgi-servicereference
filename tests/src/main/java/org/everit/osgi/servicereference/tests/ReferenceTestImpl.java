@@ -88,7 +88,7 @@ public class ReferenceTestImpl implements ReferenceTest {
         });
         reference.open();
         Comparable<Integer> service = reference.getProxyInstance();
-        Assert.assertEquals(testTimeout * (-1), service.compareTo(null));
+        Assert.assertEquals(testTimeout * (-1), service.compareTo(1));
 
         reference.setServiceUnavailableHander(new ServiceUnavailableHandler() {
 

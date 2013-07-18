@@ -21,6 +21,8 @@ package org.everit.osgi.servicereference.core.internal;
  * MA 02110-1301  USA
  */
 
+import java.util.Arrays;
+
 import org.everit.osgi.servicereference.core.WarmUpListener;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
@@ -75,7 +77,7 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
      *             be proxied and the proxy object will implement the required interfaces.
      */
     public ReferenceTrackerCustomizer(final BundleContext bundleContext, final Class<?>[] requiredInterfaces) {
-        this.requiredInterfaces = requiredInterfaces;
+        this.requiredInterfaces = Arrays.copyOf(requiredInterfaces, requiredInterfaces.length);
         this.bundleContext = bundleContext;
     }
 
@@ -104,12 +106,12 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
         }
     }
 
-    private void callWarmUpListenerIfNecessary(Object service) {
-        if (!warmedUp && this.warmUpListener != null) {
-            WarmUpListener tmp = this.warmUpListener;
+    private void callWarmUpListenerIfNecessary(final Object service) {
+        if (!warmedUp && (warmUpListener != null)) {
+            WarmUpListener tmp = warmUpListener;
             boolean callIt = false;
             synchronized (mutex) {
-                if (!warmedUp && tmp != null) {
+                if (!warmedUp && (tmp != null)) {
                     callIt = true;
                 }
             }
