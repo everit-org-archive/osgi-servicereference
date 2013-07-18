@@ -28,8 +28,14 @@ package org.everit.osgi.servicereference.core;
 public interface WarmUpListener {
 
     /**
-     * Called when the first service is available for the reference.
-     * 
+     * Called when the first service is available for the reference.<br />
+     * <br />
+     * At the time this function is called the service is not registered by the reference yet but on this thread the
+     * first incoming service is available. On the same thread reference can be called and backend service will be
+     * available for sure, however if someone opens a new thread in this function that thread has to wait at least until
+     * this function finishes to be able to call functions on the proxy instance of the reference.<br />
+     * <br />
+     * Implement this function in the way that it does not do lot's of things so it will return as soon as possible!
      */
-    void warmed();
+    void warming();
 }

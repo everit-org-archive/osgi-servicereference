@@ -30,6 +30,7 @@ import java.util.Hashtable;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.everit.osgi.servicereference.core.Reference;
 import org.everit.osgi.servicereference.core.ServiceUnavailableException;
@@ -394,7 +395,7 @@ public class ReferenceTestImpl implements ReferenceTest {
     @Override
     public void testWarmUp() {
 
-        Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
+        final Reference reference = new Reference(bundleContext, new Class<?>[] { Comparable.class },
                 createTestFilter(), 1);
 
         final AtomicBoolean warmed = new AtomicBoolean(false);
@@ -402,7 +403,7 @@ public class ReferenceTestImpl implements ReferenceTest {
         reference.setWarmUpListener(new WarmUpListener() {
 
             @Override
-            public void warmed() {
+            public void warming() {
                 warmed.set(true);
             }
         });
@@ -442,6 +443,52 @@ public class ReferenceTestImpl implements ReferenceTest {
             Assert.assertFalse(warmed.get());
             reference.close();
 
+            // and finally testing if the reference can be used from within the warmup method and does not end up in
+            // deadlock.
+            warmed.set(false);
+            final AtomicReference<Thread> warmingThread = new AtomicReference<Thread>();
+            final Object mutex = new Object();
+            reference.setWarmUpListener(new WarmUpListener() {
+
+                @Override
+                public void warming() {
+                    warmingThread.set(Thread.currentThread());
+                    @SuppressWarnings("unchecked")
+                    Comparable<Integer> comparable = (Comparable<Integer>) reference.getProxyInstance();
+                    comparable.compareTo(1);
+                    warmed.set(true);
+                    synchronized (mutex) {
+                        mutex.notify();
+                    }
+                }
+            });
+            // Opening the reference in a new thread as if there is a deadlock it should be possible to interrupt it.
+            new Thread(new Runnable() {
+
+                @Override
+                public void run() {
+                    reference.open();
+                }
+            }).start();
+            // Waiting till a timeout to be warmed.
+            synchronized (mutex) {
+                if (!warmed.get()) {
+                    try {
+                        mutex.wait(100);
+                    } catch (InterruptedException e) {
+                        Assert.fail(e.getMessage());
+                    }
+                }
+            }
+            // If it is not warmed until the timeout a possible deadlock is tested so we interrupt the warming thread.
+            if (!warmed.get()) {
+                Thread warmingThreadInstance = warmingThread.get();
+                if (warmingThreadInstance != null) {
+                    warmingThread.get().interrupt();
+                }
+                Assert.fail("No warming was done well when reference was called from the warmuplistener scope");
+            }
+            reference.close();
         } finally {
             existingSR.unregister();
         }

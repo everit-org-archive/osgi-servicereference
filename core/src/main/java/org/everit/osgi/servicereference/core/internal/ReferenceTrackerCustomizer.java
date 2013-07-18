@@ -52,7 +52,15 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
      */
     private boolean warmedUp;
 
+    /**
+     * Simple object to handle thread safety.
+     */
     private volatile Object mutex = new Object();
+
+    /**
+     * A thread local variable that holds the service object during the warmup listener call.
+     */
+    static final ThreadLocal<Object> WARM_UP_SERVICE_OBJECT = new ThreadLocal<Object>();
 
     /**
      * Simple constructor that sets the properties of this class.
@@ -88,7 +96,7 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
             implementsAll = (requiredInterfaces[i].isAssignableFrom(classOfService));
         }
         if (implementsAll) {
-            callWarmUpListenerIfNecessary();
+            callWarmUpListenerIfNecessary(service);
             return service;
         } else {
             bundleContext.ungetService(reference);
@@ -96,18 +104,20 @@ public class ReferenceTrackerCustomizer implements ServiceTrackerCustomizer<Obje
         }
     }
 
-    private void callWarmUpListenerIfNecessary() {
-        if (!warmedUp && (warmUpListener != null)) {
-            WarmUpListener tmp = warmUpListener;
+    private void callWarmUpListenerIfNecessary(Object service) {
+        if (!warmedUp && this.warmUpListener != null) {
+            WarmUpListener tmp = this.warmUpListener;
             boolean callIt = false;
             synchronized (mutex) {
-                if (!warmedUp && (tmp != null)) {
+                if (!warmedUp && tmp != null) {
                     callIt = true;
                 }
             }
 
             if (callIt) {
-                tmp.warmed();
+                WARM_UP_SERVICE_OBJECT.set(service);
+                tmp.warming();
+                WARM_UP_SERVICE_OBJECT.remove();
             }
         }
     }

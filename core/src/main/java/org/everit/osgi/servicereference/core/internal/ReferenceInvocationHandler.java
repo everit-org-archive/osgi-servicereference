@@ -92,8 +92,13 @@ public class ReferenceInvocationHandler implements InvocationHandler {
             if (!reference.isOpened()) {
                 throw new IllegalStateException("Reference is not opened. Filter of reference: '" + filter + "'.");
             }
+
+            service = ReferenceTrackerCustomizer.WARM_UP_SERVICE_OBJECT.get();
+        }
+        if (service == null) {
             service = serviceTracker.waitForService(timeout);
         }
+
         if (service == null) {
             if (serviceNotAvailableHandler != null) {
                 return serviceNotAvailableHandler.handle(filter, method, args, timeout);
