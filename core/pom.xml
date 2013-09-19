@@ -29,7 +29,7 @@
     <parent>
         <groupId>org.everit.osgi</groupId>
         <artifactId>servicereference</artifactId>
-        <version>1.0.0.alpha</version>
+        <version>1.0.0.beta1</version>
     </parent>
 
     <groupId>org.everit.osgi.servicereference</groupId>

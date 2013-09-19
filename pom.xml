@@ -34,7 +34,7 @@
 
 	<groupId>org.everit.osgi</groupId>
     <artifactId>servicereference</artifactId>
-    <version>1.0.0.alpha</version>
+    <version>1.0.0.beta1</version>
     <packaging>pom</packaging>
     <name>Everit OSGi ServiceReference</name>
     <description>Helper classes to be able to reference an OSGi service with a proxy object and hold method calls until a timeout if no service is available behind a proxy. You can see this kind of behaviour in the Blueprint spec.</description>
